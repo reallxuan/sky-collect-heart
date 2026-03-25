@@ -121,7 +121,7 @@ async function main() {
         const loveNumber = data.loveNumber ?? '-';
         const claimedNumber = data.claimedNumber ?? '-';
         console.log(
-          `第 ${requestCount} 次请求 | 今日已取: ${todayLoveNumber} | 剩余爱心: ${loveNumber} | 可领次数: ${claimedNumber}`
+          `第 ${requestCount} 次请求 | 今日已取: ${todayLoveNumber} | 剩余爱心: ${loveNumber} | 已领次数: ${claimedNumber}`
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
