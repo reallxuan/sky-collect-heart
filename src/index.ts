@@ -7,8 +7,6 @@ const { stdin, stdout } = require('node:process');
 
 const LINK_REQUEST_URL = 'http://csjk.chenshuiyi.cn/Api/getCamiLinkTwo';
 const TASK_REQUEST_URL = 'http://csjk.chenshuiyi.cn/Api/getTaskInformation';
-const RETRY_DELAY_MIN_MS = 10;
-const RETRY_DELAY_MAX_MS = 50;
 const REQUEST_HEADERS = {
   Accept: '*/*',
   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
@@ -23,19 +21,20 @@ const REQUEST_HEADERS = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
 };
 const CAMI = process.env.CAMI?.trim();
+const RETRY_DELAY_MS = Number(process.env.RETRY_DELAY_MS ?? '1000');
 
 if (!CAMI) {
   throw new Error('缺少 CAMI 环境变量，请在 .env 文件中配置 CAMI=你的卡密');
+}
+
+if (!Number.isFinite(RETRY_DELAY_MS) || RETRY_DELAY_MS < 0) {
+  throw new Error('缺少合法的 RETRY_DELAY_MS 环境变量，请在 .env 文件中配置大于等于 0 的数字');
 }
 
 const REQUEST_BODY = new URLSearchParams({
   cami: CAMI,
 }).toString();
 let requestCount = 0;
-
-function randomDelayMs() {
-  return RETRY_DELAY_MIN_MS + Math.floor(Math.random() * (RETRY_DELAY_MAX_MS - RETRY_DELAY_MIN_MS + 1));
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -61,20 +60,12 @@ async function fetchLink() {
         body: REQUEST_BODY,
       });
 
-      if (response.status === 500) {
-        const waitMs = randomDelayMs();
-        renderStatusLine(`第 ${requestCount} 次请求 | link 接口返回 500，${waitMs}ms 后重试...`);
-        await sleep(waitMs);
-        continue;
-      }
-
       if (!response.ok) {
-        const waitMs = randomDelayMs();
         const errorText = await response.text();
         renderStatusLine(
-          `第 ${requestCount} 次请求 | link 失败 status=${response.status}，${errorText}，${waitMs}ms 后重试...`
+          `第 ${requestCount} 次请求 | link 失败 status=${response.status}，${errorText}，${RETRY_DELAY_MS}ms 后重试...`
         );
-        await sleep(waitMs);
+        await sleep(RETRY_DELAY_MS);
         continue;
       }
 
@@ -85,16 +76,16 @@ async function fetchLink() {
         return link;
       }
 
-      const waitMs = randomDelayMs();
       renderStatusLine(
-        `第 ${requestCount} 次请求 | link 响应无有效数据，${waitMs}ms 后重试...`
+        `第 ${requestCount} 次请求 | link 响应无有效数据，${RETRY_DELAY_MS}ms 后重试... | ${JSON.stringify(result)}`
       );
-      await sleep(waitMs);
+      await sleep(RETRY_DELAY_MS);
     } catch (error) {
-      const waitMs = randomDelayMs();
       const message = error instanceof Error ? error.message : String(error);
-      renderStatusLine(`第 ${requestCount} 次请求 | link 请求异常：${message}，${waitMs}ms 后重试...`);
-      await sleep(waitMs);
+      renderStatusLine(
+        `第 ${requestCount} 次请求 | link 请求异常：${message}，${RETRY_DELAY_MS}ms 后重试... | ERROR : ${error}`
+      );
+      await sleep(RETRY_DELAY_MS);
     }
   }
 }
